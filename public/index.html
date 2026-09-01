@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Secret Chat</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; background: #121212; color: #fff; display: flex; flex-direction: column; height: 100vh; }
+    #login-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; padding: 20px; }
+    #chat-screen { display: flex; flex-direction: column; height: 100vh; }
+    .hidden { display: none !important; }
+    input, button { padding: 12px; border-radius: 8px; border: none; font-size: 16px; margin: 5px; }
+    input { background: #222; color: #fff; width: 80%; max-width: 300px; border: 1px solid #444; }
+    button { background: #007bff; color: white; font-weight: bold; cursor: pointer; }
+    #messages { flex: 1; overflow-y: auto; padding: 15px; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .message { background: #2a2a2a; padding: 10px 14px; border-radius: 12px; max-width: 80%; word-break: break-all; align-self: flex-start; }
+    #input-form { display: flex; padding: 10px; background: #1e1e1e; }
+    #msg-input { flex: 1; margin-right: 5px; }
+    #header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background: #1e1e1e; border-bottom: 1px solid #333; }
+    .clear-btn { background: #dc3545; font-size: 12px; padding: 6px 10px; }
+  </style>
+</head>
+<body>
+
+  <!-- ログイン画面 -->
+  <div id="login-screen">
+    <h2 style="margin-bottom:20px;">合言葉を入力</h2>
+    <input type="password" id="password-input" placeholder="パスワード">
+    <button onclick="login()">入室</button>
+  </div>
+
+  <!-- チャット画面 -->
+  <div id="chat-screen" class="hidden">
+    <div id="header">
+      <span>Secret Chat</span>
+      <button class="clear-btn" onclick="clearHistory()">履歴を全削除</button>
+    </div>
+    <ul id="messages"></ul>
+    <form id="input-form" onsubmit="sendMessage(event)">
+      <input type="text" id="msg-input" placeholder="メッセージを入力..." autocomplete="off">
+      <button type="submit">送信</button>
+    </form>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const loginScreen = document.getElementById('login-screen');
+    const chatScreen = document.getElementById('chat-screen');
+    const passwordInput = document.getElementById('password-input');
+    const messages = document.getElementById('messages');
+    const msgInput = document.getElementById('msg-input');
+
+    function login() {
+      const pwd = passwordInput.value;
+      socket.emit('login', pwd, (res) => {
+        if (res.success) {
+          loginScreen.classList.add('hidden');
+          chatScreen.classList.remove('hidden');
+          messages.innerHTML = '';
+          res.history.forEach(addMessage);
+        } else {
+          alert('パスワードが違います');
+        }
+      });
+    }
+
+    function sendMessage(e) {
+      e.preventDefault();
+      if (msgInput.value.trim()) {
+        socket.emit('chat message', msgInput.value);
+        msgInput.value = '';
+      }
+    }
+
+    function addMessage(msg) {
+      const li = document.createElement('li');
+      li.className = 'message';
+      li.textContent = msg;
+      messages.appendChild(li);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function clearHistory() {
+      if (confirm('すべての端末のチャット履歴を消去しますか？')) {
+        socket.emit('clear history');
+      }
+    }
+
+    socket.on('chat message', (msg) => {
+      addMessage(msg);
+    });
+
+    socket.on('history cleared', () => {
+      messages.innerHTML = '';
+    });
+  </script>
+</body>
+</html>
