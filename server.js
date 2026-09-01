@@ -2,18 +2,24 @@ const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
+const path = require('path');
 
-// publicフォルダの中身をブラウザに表示する
-app.use(express.static('public'));
+// publicフォルダの静的ファイルを読み込む
+app.use(express.static(path.join(__dirname, 'public')));
 
-// ★ここをお好きなパスワードに変更してください
-const SECRET_PASSWORD = "0929"; 
-let chatHistory = []; // メモリ上にのみ保存（手動削除で消えます）
+// トップページ（/）にアクセスした際、確実に index.html を返します
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// ★合言葉（変更可能）
+const SECRET_PASSWORD = "0929";
+
+let chatHistory = [];
 
 io.on('connection', (socket) => {
   let isAuthenticated = false;
 
-  // ログイン処理
   socket.on('login', (password, callback) => {
     if (password === SECRET_PASSWORD) {
       isAuthenticated = true;
@@ -23,18 +29,16 @@ io.on('connection', (socket) => {
     }
   });
 
-  // メッセージ受信
   socket.on('chat message', (msg) => {
     if (!isAuthenticated) return;
     chatHistory.push(msg);
-    io.emit('chat message', msg); // 全員に送信
+    io.emit('chat message', msg);
   });
 
-  // 手動全削除
   socket.on('clear history', () => {
     if (!isAuthenticated) return;
-    chatHistory = []; // サーバー上の履歴を空にする
-    io.emit('history cleared'); // 全クライアントに削除を通知
+    chatHistory = [];
+    io.emit('history cleared');
   });
 });
 
