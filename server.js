@@ -4,17 +4,14 @@ const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const path = require('path');
 
-// publicフォルダの静的ファイルを読み込む
 app.use(express.static(path.join(__dirname, 'public')));
 
-// トップページ（/）にアクセスした際、確実に index.html を返します
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// ★合言葉（変更可能）
-const SECRET_PASSWORD = "0929";
-
+// ★合言葉
+const SECRET_PASSWORD = "0929"; 
 let chatHistory = [];
 
 io.on('connection', (socket) => {
@@ -33,6 +30,17 @@ io.on('connection', (socket) => {
     if (!isAuthenticated) return;
     chatHistory.push(msg);
     io.emit('chat message', msg);
+  });
+
+  // 【追加】スマホ側に残っている履歴でサーバーの記憶を復元する機能
+  socket.on('restore history', (localHistory) => {
+    if (!isAuthenticated) return;
+    // サーバーの履歴が空っぽ（再起動直後）の時だけ復元を採用する
+    if (chatHistory.length === 0 && localHistory.length > 0) {
+      chatHistory = localHistory;
+      // 他の接続中の人にも復元された履歴を配る
+      io.emit('history restored', chatHistory);
+    }
   });
 
   socket.on('clear history', () => {
