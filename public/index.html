@@ -52,14 +52,26 @@
     const messages = document.getElementById('messages');
     const msgInput = document.getElementById('msg-input');
 
+    // 端末のブラウザに一時保存されている履歴を読み込む
+    let localHistory = JSON.parse(localStorage.getItem('secret_chat_history') || '[]');
+
     function login() {
       const pwd = passwordInput.value;
       socket.emit('login', pwd, (res) => {
         if (res.success) {
           loginScreen.classList.add('hidden');
           chatScreen.classList.remove('hidden');
-          messages.innerHTML = '';
-          res.history.forEach(addMessage);
+          
+          // サーバーがスリープして履歴が消えており、かつスマホ側に履歴が残っている場合
+          if (res.history.length === 0 && localHistory.length > 0) {
+            socket.emit('restore history', localHistory); // サーバーに記憶を復元させる
+            renderMessages(localHistory);
+          } else {
+            // 通常時はサーバーの履歴を優先して上書き
+            localHistory = res.history;
+            localStorage.setItem('secret_chat_history', JSON.stringify(localHistory));
+            renderMessages(localHistory);
+          }
         } else {
           alert('パスワードが違います');
         }
@@ -74,25 +86,44 @@
       }
     }
 
-    function addMessage(msg) {
+    function renderMessages(historyArray) {
+      messages.innerHTML = '';
+      historyArray.forEach(msg => {
+        const li = document.createElement('li');
+        li.className = 'message';
+        li.textContent = msg;
+        messages.appendChild(li);
+      });
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    socket.on('chat message', (msg) => {
+      localHistory.push(msg);
+      localStorage.setItem('secret_chat_history', JSON.stringify(localHistory));
+      
       const li = document.createElement('li');
       li.className = 'message';
       li.textContent = msg;
       messages.appendChild(li);
       messages.scrollTop = messages.scrollHeight;
-    }
+    });
+
+    // 誰かが記憶を復元した時に画面を同期する
+    socket.on('history restored', (restoredHistory) => {
+      localHistory = restoredHistory;
+      localStorage.setItem('secret_chat_history', JSON.stringify(localHistory));
+      renderMessages(localHistory);
+    });
 
     function clearHistory() {
-      if (confirm('すべての端末のチャット履歴を消去しますか？')) {
+      if (confirm('すべての端末のチャット履歴を完全に消去しますか？')) {
         socket.emit('clear history');
       }
     }
 
-    socket.on('chat message', (msg) => {
-      addMessage(msg);
-    });
-
     socket.on('history cleared', () => {
+      localHistory = [];
+      localStorage.removeItem('secret_chat_history'); // スマホ側の一時保存も消去
       messages.innerHTML = '';
     });
   </script>
